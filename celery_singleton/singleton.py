@@ -121,7 +121,7 @@ class Singleton(BaseTask):
 
     def lock_and_run(self, lock, *args, task_id=None, **kwargs):
         lock_aquired = self.aquire_lock(lock, task_id)
-        if lock_aquired or self._unlock_to_super_retry::
+        if lock_aquired or self._unlock_to_super_retry:
             try:
                 return super(Singleton, self).apply_async(
                     *args, task_id=task_id, **kwargs
