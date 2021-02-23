@@ -21,6 +21,10 @@ class Singleton(BaseTask):
     unique_on = None
     raise_on_duplicate = None
     lock_expiry = None
+    
+    def __init__(self, *args, **kwargs):
+        self._unlock_to_super_retry = False
+        super(Singleton, self).__init__(*args, **kwargs)
 
     @property
     def _raise_on_duplicate(self):
@@ -117,14 +121,15 @@ class Singleton(BaseTask):
 
     def lock_and_run(self, lock, *args, task_id=None, **kwargs):
         lock_aquired = self.aquire_lock(lock, task_id)
-        if lock_aquired:
+        if lock_aquired or self._unlock_to_super_retry::
             try:
                 return super(Singleton, self).apply_async(
                     *args, task_id=task_id, **kwargs
                 )
             except Exception:
                 # Clear the lock if apply_async fails
-                self.unlock(lock)
+                if lock_aquired:
+                    self.unlock(lock)
                 raise
 
     def release_lock(self, task_args=None, task_kwargs=None):
@@ -147,3 +152,13 @@ class Singleton(BaseTask):
 
     def on_success(self, retval, task_id, args, kwargs):
         self.release_lock(task_args=args, task_kwargs=kwargs)
+    
+     def retry(self, args=None, kwargs=None, exc=None, throw=True,
+              eta=None, countdown=None, max_retries=None, **options):
+        self._unlock_to_super_retry = True
+        retry_task = super(Singleton, self).retry(
+            args, kwargs, exc, throw, eta, countdown, max_retries, **options
+        )
+        self._unlock_to_super_retry = False
+
+        return retry_task
